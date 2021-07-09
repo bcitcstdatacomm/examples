@@ -39,15 +39,15 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
 static int destroy_settings(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings **psettings);
 static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings *settings);
 static void signal_handler(int signnum);
-static int do_create_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-static int do_create_socket(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-static int do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-static int do_bind(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-static int do_listen(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-static int do_setup(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-static int do_accept(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-static int do_shutdown(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-static int do_destroy_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static void do_create_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static void do_create_socket(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static void do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static void do_bind(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static void do_listen(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static void do_setup(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static void do_shutdown(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static void do_destroy_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static void error_reporter(const struct dc_posix_env *env, const struct dc_error *err);
 static void trace(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
 static void write_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count, size_t file_position, void *arg);
@@ -213,37 +213,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     {
         ret_val = -1;
     }
-
-    /*
-    struct addrinfo *res;
-
-    res = result;
-    printf("Host: %s\n", hostname);
-
-    while(res)
-    {
-        char addrstr[100];
-        void *ptr;
-
-        inet_ntop(res->ai_family, res->ai_addr->sa_data, addrstr, 100);
-
-        switch(res->ai_family)
-        {
-            case AF_INET:
-                ptr = &((struct sockaddr_in *) res->ai_addr)->sin_addr;
-                break;
-            case AF_INET6:
-                ptr = &((struct sockaddr_in6 *) res->ai_addr)->sin6_addr;
-                break;
-        }
-
-        inet_ntop(res->ai_family, ptr, addrstr, 100);
-        printf("IPv%d address: %s (%s)\n", res->ai_family == PF_INET6 ? 6 : 4,
-                addrstr, res->ai_canonname);
-        res = res->ai_next;
-    }
-    */
-
+    
     return ret_val;
 }
 
@@ -254,12 +224,11 @@ void signal_handler(__attribute__ ((unused)) int signnum)
     exit_signal = 1;
 }
 
-static int do_create_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_create_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     const char                  *ip_version;
     int                          family;
-    int                          ret_val;
 
     DC_TRACE(env);
     app_settings = arg;
@@ -285,68 +254,32 @@ static int do_create_settings(const struct dc_posix_env *env, struct dc_error *e
         hostname = dc_setting_string_get(env, app_settings->hostname);
         dc_network_get_addresses(env, err, family, SOCK_STREAM, hostname, &app_settings->result);
     }
-
-    if(DC_HAS_ERROR(err))
-    {
-        ret_val = -1;
-    }
-    else
-    {
-        ret_val = 0;
-    }
-
-    return ret_val;
 }
 
-static int do_create_socket(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_create_socket(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
-    int                          ret_val;
 
     DC_TRACE(env);
     app_settings = arg;
     app_settings->server_socket_fd = dc_network_create_socket(env, err, app_settings->result);
-
-    if(DC_HAS_ERROR(err))
-    {
-        ret_val = -1;
-    }
-    else
-    {
-        ret_val = 0;
-    }
-
-    return ret_val;
 }
 
-static int do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     bool                         reuse_address;
-    int                          ret_val;
 
     DC_TRACE(env);
     app_settings  = arg;
     reuse_address = dc_setting_bool_get(env, app_settings->reuse_address);
     dc_network_reuse_socket(env, err, app_settings->server_socket_fd, reuse_address);
-
-    if(DC_HAS_ERROR(err))
-    {
-        ret_val = -1;
-    }
-    else
-    {
-        ret_val = 0;
-    }
-
-    return ret_val;
 }
 
-static int do_bind(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_bind(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     uint16_t port;
-    int ret_val;
 
     DC_TRACE(env);
     app_settings = arg;
@@ -357,55 +290,29 @@ static int do_bind(const struct dc_posix_env *env, struct dc_error *err, void *a
                     app_settings->server_socket_fd,
                     app_settings->result->ai_addr,
                     port);
-
-    if(DC_HAS_ERROR(err))
-    {
-        ret_val = -1;
-    }
-    else
-    {
-        ret_val = 0;
-    }
-
-    return ret_val;
 }
 
-static int do_listen(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_listen(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     int                          backlog;
-    int                          ret_val;
 
     DC_TRACE(env);
     app_settings = arg;
     backlog = 5;    // TODO: make this a setting
     dc_network_listen(env, err, app_settings->server_socket_fd, backlog);
-
-    if(DC_HAS_ERROR(err))
-    {
-        ret_val = -1;
-    }
-    else
-    {
-        ret_val = 0;
-    }
-
-    return ret_val;
-
 }
 
-static int do_setup(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, __attribute__ ((unused)) void *arg)
+static void do_setup(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, __attribute__ ((unused)) void *arg)
 {
     DC_TRACE(env);
-
-    return 0;
 }
 
-static int do_accept(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     int                          client_socket_fd;
-    int                          ret_val;
+    bool                         ret_val;
 
     DC_TRACE(env);
     app_settings = arg;
@@ -415,16 +322,16 @@ static int do_accept(const struct dc_posix_env *env, struct dc_error *err, void 
     {
         if(exit_signal == true && DC_ERROR_IS_ERRNO(err, EINTR))
         {
-            ret_val = 1;
+            ret_val = true;
         }
         else
         {
-            ret_val = -1;
+            ret_val = false;
         }
     }
     else
     {
-        ret_val = 0;
+        ret_val = false;
         struct dc_dump_info        *dump_info;
         struct dc_stream_copy_info *copy_info;
 
@@ -452,25 +359,21 @@ static int do_accept(const struct dc_posix_env *env, struct dc_error *err, void 
     return ret_val;
 }
 
-static int do_shutdown(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, void *arg)
+static void do_shutdown(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
 
     DC_TRACE(env);
     app_settings = arg;
-
-    return 0;
 }
 
-static int do_destroy_settings(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, void *arg)
+static void do_destroy_settings(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
 
     DC_TRACE(env);
     app_settings = arg;
     dc_freeaddrinfo(env, app_settings->result);
-
-    return 0;
 }
 
 __attribute__ ((unused)) static void write_displayer(__attribute__ ((unused)) const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, const uint8_t *data, size_t count, __attribute__ ((unused)) size_t file_position, __attribute__ ((unused)) void *arg)
