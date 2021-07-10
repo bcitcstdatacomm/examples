@@ -83,7 +83,7 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
     static const char           *default_hostname = "localhost";
     static const char           *default_ip       = "IPv4";
     static const uint16_t        default_port     = DEFAULT_ECHO_PORT;
-    static const char           *default_message  = "Hello";
+    static const char           *default_message  = NULL;
     struct application_settings *settings;
 
     settings = dc_malloc(env, err, sizeof(struct application_settings));
@@ -235,19 +235,19 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     }
 
     message_length = dc_strlen(env, message);
-    dc_write(env, err, sock_fd, message, message_length  * sizeof(char));
+    dc_write(env, err, sock_fd, message, message_length);
 
     if(DC_HAS_NO_ERROR(err))
     {
         char *echoed_message;
 
-        echoed_message = dc_malloc(env, err, (message_length + 1) * sizeof(char));
+        echoed_message = dc_malloc(env, err, message_length + 1);
 
         if(DC_HAS_NO_ERROR(err))
         {
             dc_read(env, err, sock_fd, echoed_message, message_length);
             dc_close(env, err, sock_fd);
-            dc_free(env, echoed_message, (message_length + 1) * sizeof(char));
+            dc_free(env, echoed_message, message_length + 1);
         }
     }
 

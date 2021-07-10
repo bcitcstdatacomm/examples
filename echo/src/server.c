@@ -213,7 +213,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     {
         ret_val = -1;
     }
-    
+
     return ret_val;
 }
 
@@ -311,11 +311,12 @@ static void do_setup(const struct dc_posix_env *env, __attribute__ ((unused)) st
 static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
-    int                          client_socket_fd;
-    bool                         ret_val;
+    int client_socket_fd;
+    bool ret_val;
 
     DC_TRACE(env);
-    app_settings = arg;
+    app_settings     = arg;
+    ret_val          = false;
     client_socket_fd = dc_network_accept(env, err, app_settings->server_socket_fd);
 
     if(DC_HAS_ERROR(err))
@@ -324,39 +325,35 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, void
         {
             ret_val = true;
         }
-        else
-        {
-            ret_val = false;
-        }
-    }
-    else
-    {
-        ret_val = false;
-        struct dc_dump_info        *dump_info;
-        struct dc_stream_copy_info *copy_info;
-
-        dump_info = dc_dump_info_create(env, err, STDOUT_FILENO, dc_max_off_t(env));
-
-        if(DC_HAS_NO_ERROR(err))
-        {
-//            copy_info = dc_stream_copy_info_create(env, err, NULL, read_displayer, &client_fd, write_displayer, &client_fd);
-            copy_info = dc_stream_copy_info_create(env, err, NULL, dc_dump_dumper, dump_info, NULL, NULL);
-
-            if(DC_HAS_NO_ERROR(err))
-            {
-                dc_stream_copy(env, err, client_socket_fd, client_socket_fd, 1024, copy_info);
-
-                if(DC_HAS_NO_ERROR(err))
-                {
-                    dc_stream_copy_info_destroy(env, &copy_info);
-                }
-            }
-
-            dc_dump_info_destroy(env, &dump_info);
-        }
     }
 
     return ret_val;
+}
+
+void foo(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+{
+    struct dc_dump_info        *dump_info;
+    struct dc_stream_copy_info *copy_info;
+
+    dump_info = dc_dump_info_create(env, err, STDOUT_FILENO, dc_max_off_t(env));
+
+    if(DC_HAS_NO_ERROR(err))
+    {
+//            copy_info = dc_stream_copy_info_create(env, err, NULL, read_displayer, &client_fd, write_displayer, &client_fd);
+        copy_info = dc_stream_copy_info_create(env, err, NULL, dc_dump_dumper, dump_info, NULL, NULL);
+
+        if(DC_HAS_NO_ERROR(err))
+        {
+            dc_stream_copy(env, err, client_socket_fd, client_socket_fd, 1024, copy_info);
+
+            if(DC_HAS_NO_ERROR(err))
+            {
+                dc_stream_copy_info_destroy(env, &copy_info);
+            }
+        }
+
+        dc_dump_info_destroy(env, &dump_info);
+    }
 }
 
 static void do_shutdown(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, void *arg)
