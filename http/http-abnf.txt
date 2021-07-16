@@ -81,17 +81,29 @@ HTTP-message            = start-line *( header-field CRLF ) CRLF [ message-body]
 quoted-pair             = "\" ( HTAB / SP / VCHAR / obs-text )
 qdtext                  = HTAB / SP / "!" / %x23-5B ; '#'-'[' / %x5D-7E ; ']'-'~' / obs-text
 quoted-string           = DQUOTE *( qdtext / quoted-pair ) DQUOTE
-uri-host                = <host, see [RFC3986], Section 3.2.2>
-port                    = <port, see [RFC3986], Section 3.2.3>
 first-byte-pos          = 1*DIGIT
 last-byte-pos           = 1*DIGIT
 bytes-unit              = "bytes"
 other-range-unit        = token
+BWS                     = OWS
 transfer-parameter      = token BWS "=" BWS ( token / quoted-string )
 transfer-extension      = token *( OWS ";" OWS transfer-parameter )
 transfer-coding         = "chunked" / "compress" / "deflate" / "gzip" / transfer-extension
-BWS                     = OWS
-weak                    = %x57.2F ; W/
+protocol-name           = token
+protocol-version        = token
+uri-host                = <host, see [RFC3986], Section 3.2.2>
+port                    = <port, see [RFC3986], Section 3.2.3>
+pseudonym               = token
+RWS                     = 1*( SP / HTAB )
+ctext                   = HTAB / SP / %x21-27 ; '!'-''' / %x2A-5B ; '*'-'[' / %x5D-7E ; ']'-'~' / obs-text
+comment                 = "(" *( ctext / quoted-pair / comment ) ")"
+type                    = token
+subtype                 = token
+parameter               = token "=" ( token / quoted-string )
+content-coding          = token
+relative-part           = <relative-part, see [RFC3986], Section 4.2>
+partial-URI             = relative-part [ "?" query ]
+weak                    = "W/"
 etagc                   = "!" / %x23-7E ; '#'-'~' / obs-text
 opaque-tag              = DQUOTE *etagc DQUOTE
 entity-tag              = [ weak ] opaque-tag
@@ -102,6 +114,20 @@ day-name                = "Mon" /
                           "Fri" /
                           "Sat" /
                           "Sun"
+day                     = 2DIGIT
+month                   = "Jan" /
+                          "Feb" /
+                          "Mar" /
+                          "Apr" /
+                          "May" /
+                          "Jun" /
+                          "Jul" /
+                          "Aug" /
+                          "Sep" /
+                          "Oct" /
+                          "Nov" /
+                          "Dec"
+year                    = 4DIGIT
 date1                   = day SP month SP year
 hour                    = 2DIGIT
 minute                  = 2DIGIT
@@ -116,66 +142,67 @@ day-name-l              = "Monday" /
                           "Friday" /
                           "Saturday" /
                           "Sunday"
-day                     = 2DIGIT
-month                   = "Jan" /
-                          "Feb" /
-                          "Mar" /
-                          "Apr" /
-                          "May" /
-                          "Jun" /
-                          "Jul" /
-                          "Aug" /
-                          "Sep" /
-                          "Oct" /
-                          "Nov" /
-                          "Dec"
 date2                   = day "-" month "-" 2DIGIT
 rfc850-date             = day-name-l "," SP date2 SP time-of-day SP GMT
-year                    = 4DIGIT
 date3                   = month SP ( 2DIGIT / ( SP DIGIT ) )
 asctime-date            = day-name SP date3 SP time-of-day SP year
 obs-date                = rfc850-date / asctime-date
 HTTP-date               = IMF-fixdate / obs-date
 qvalue                  = ( "0" [ "." *3DIGIT ] ) / ( "1" [ "." *3"0" ] )
 weight                  = OWS ";" OWS "q=" qvalue
-subtype                 = token
-type                    = token
-content-coding          = token
 auth-scheme             = token
 token68                 = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
 auth-param              = token BWS "=" BWS ( token / quoted-string )
 credentials             = auth-scheme [ 1*SP ( token68 / [ ( "," / auth-param ) *( OWS "," [ OWS auth-param ] ) ] ) ]
-relative-part           = <relative-part, see [RFC3986], Section 4.2>
-partial-URI             = relative-part [ "?" query ]
-pseudonym               = token
 product-version         = token
 product                 = token [ "/" product-version ]
-RWS                     = 1*( SP / HTAB )
-ctext                   = HTAB / SP / %x21-27 ; '!'-''' / %x2A-5B ; '*'-'[' / %x5D-7E ; ']'-'~' / obs-text
-comment                 = "(" *( ctext / quoted-pair / comment ) ")"
 challenge               = auth-scheme [ 1*SP ( token68 / [ ( "," / auth-param ) *( OWS "," [ OWS auth-param ] ) ] ) ]
-protocol-name           = token
-protocol-version        = token
-parameter               = token "=" ( token / quoted-string )
 
-; *************************** controls headers
-
-delta-seconds           = 1*DIGIT
-Age                     = delta-seconds
+; *************************** common headers
 
 cache-directive         = token [ "=" ( token / quoted-string ) ]
 Cache-Control           = *( "," OWS ) cache-directive *( OWS "," [ OWS cache-directive ] )
 
-Date                    = HTTP-date
+Content-Length          = 1*DIGIT
+
+complete-length         = 1*DIGIT
+byte-range              = first-byte-pos "-" last-byte-pos
+byte-range-resp         = byte-range "/" ( complete-length / "*" )
+unsatisfied-range       = "*/" complete-length
+byte-content-range      = bytes-unit SP ( byte-range-resp / unsatisfied-range )
+other-range-resp        = *CHAR
+other-content-range     = other-range-unit SP other-range-resp
+Content-Range           = byte-content-range / other-content-range
+
+Trailer                 = *( "," OWS ) field-name *( OWS "," [ OWS field-name ] )
+
+Transfer-Encoding       = *( "," OWS ) transfer-coding *( OWS "," [ OWS transfer-coding ] )
+
+protocol                = protocol-name [ "/" protocol-version ]
+Upgrade                 = *( "," OWS ) protocol *( OWS "," [ OWS protocol ] )
+
+connection-option       = token
+Connection              = *( "," OWS ) connection-option *( OWS "," [ OWS connection-option ] )
+
+received-protocol       = [ protocol-name "/" ] protocol-version
+received-by             = ( uri-host [ ":" port ] ) / pseudonym
+Via                     = *( "," OWS ) ( received-protocol RWS received-by [ RWS comment ] ) *( OWS "," [ OWS ( received-protocol RWS received-by [ RWS comment ] ) ] )
+
+media-type              = type "/" subtype *( OWS ";" OWS parameter )
+Content-Type            = media-type
+
+Content-Encoding        = *( "," OWS ) content-coding *( OWS "," [ OWS content-coding ] )
+
+language-tag            = <Language-Tag, see [RFC5646], Section 2.1>
+Content-Language        = *( "," OWS ) language-tag *( OWS "," [ OWS language-tag ] )
+
+Content-Location        = absolute-URI / partial-URI
+
+; *************************** request headers
 
 Expect                  = "100-continue"
 
-Expires                 = HTTP-date
-
 Host                    = uri-host [ ":" port ]
-
-URI-reference = <URI-reference, see [RFC3986], Section 4.1>
-Location = URI-reference
 
 Max-Forwards            = 1*DIGIT
 
@@ -188,28 +215,14 @@ suffix-length           = 1*DIGIT
 suffix-byte-range-spec  = "-" suffix-length
 byte-range-set          = *( "," OWS ) ( byte-range-spec / suffix-byte-range-spec ) *( OWS "," [ OWS ( byte-range-spec / suffix-byte-range-spec ) ] )
 byte-ranges-specifier   = bytes-unit "=" byte-range-set
-other-ranges-specifier  = other-range-unit "=" other-range-set
 other-range-set         = 1*VCHAR
+other-ranges-specifier  = other-range-unit "=" other-range-set
 Range                   = byte-ranges-specifier / other-ranges-specifier
-
-delay-seconds           = 1*DIGIT
-Retry-After             = HTTP-date / delay-seconds
 
 rank                    = ( "0" [ "." *3DIGIT ] ) / ( "1" [ "." *3"0" ] )
 t-ranking               = OWS ";" OWS "q=" rank
 t-codings               = "trailers" / ( transfer-coding [ t-ranking ] )
 TE                      = [ ( "," / t-codings ) *( OWS "," [ OWS t-codings ] ) ]
-
-Vary                    = "*" / ( *( "," OWS ) field-name *( OWS "," [ OWS field-name ] ) )
-
-warn-code               = 3DIGIT
-warn-agent              = ( uri-host [ ":" port ] ) / pseudonym
-warn-text               = quoted-string
-warn-date               = DQUOTE HTTP-date DQUOTE
-warning-value           = warn-code SP warn-agent SP warn-text [ SP warn-date ]
-Warning                 = *( "," OWS ) warning-value *( OWS "," [ OWS warning-value ])
-
-; *************************** conditionals headers
 
 If-Match                = "*" / ( *( "," OWS ) entity-tag *( OWS "," [ OWS entity-tag ] ) )
 
@@ -220,8 +233,6 @@ If-Modified-Since       = HTTP-date
 If-Unmodified-Since     = HTTP-date
 
 If-Range                = entity-tag / HTTP-date
-
-; *************************** content negotiation headers
 
 media-range             = ( "*/*" / ( type "/*" ) / ( type "/" subtype ) ) *( OWS ";" OWS parameter )
 accept-ext              = OWS ";" OWS token [ "=" ( token / quoted-string ) ]
@@ -237,13 +248,9 @@ Accept-Encoding         = [ ( "," / ( codings [ weight ] ) ) *( OWS "," [ OWS ( 
 language-range          = <language-range, see [RFC4647], Section 2.1>
 Accept-Language         = *( "," OWS ) ( language-range [ weight ] ) *( OWS "," [ OWS ( language-range [ weight ] ) ] )
 
-; *************************** authentication credentials headers
-
 Authorization           = credentials
 
 Proxy-Authorization     = credentials
-
-; *************************** request context headers
 
 mailbox                 = <mailbox, see [RFC5322], Section 3.4>
 From                    = mailbox
@@ -252,19 +259,37 @@ Referer                 = absolute-URI / partial-URI
 
 User-Agent              = product *( RWS ( product / comment ) )
 
-; *************************** validator headers
+; *************************** response headers
+
+delta-seconds           = 1*DIGIT
+Age                     = delta-seconds
+
+Expires                 = HTTP-date
+
+Date                    = HTTP-date
+
+URI-reference = <URI-reference, see [RFC3986], Section 4.1>
+Location = URI-reference
+
+delay-seconds           = 1*DIGIT
+Retry-After             = HTTP-date / delay-seconds
+
+Vary                    = "*" / ( *( "," OWS ) field-name *( OWS "," [ OWS field-name ] ) )
+
+warn-code               = 3DIGIT
+warn-agent              = ( uri-host [ ":" port ] ) / pseudonym
+warn-text               = quoted-string
+warn-date               = DQUOTE HTTP-date DQUOTE
+warning-value           = warn-code SP warn-agent SP warn-text [ SP warn-date ]
+Warning                 = *( "," OWS ) warning-value *( OWS "," [ OWS warning-value ])
 
 ETag                    = entity-tag
 
 Last-Modified           = HTTP-date
 
-; *************************** authentication challenges headers
-
-Proxy-Authenticate      = *( "," OWS ) challenge *( OWS "," [ OWS challenge ] )
-
 WWW-Authenticate        = *( "," OWS ) challenge *( OWS "," [ OWS challenge ] )
 
-; *************************** response context headers
+Proxy-Authenticate      = *( "," OWS ) challenge *( OWS "," [ OWS challenge ] )
 
 range-unit              = bytes-unit / other-range-unit
 acceptable-ranges       = ( *( "," OWS ) range-unit *( OWS "," [ OWS range-unit ] ) ) / "none"
@@ -273,53 +298,6 @@ Accept-Ranges           = acceptable-ranges
 Allow                   = [ ( "," / method ) *( OWS "," [ OWS method ] ) ]
 
 Server                  = product *( RWS ( product / comment ) )
-
-; *************************** message body headers
-
-Transfer-Encoding       = *( "," OWS ) transfer-coding *( OWS "," [ OWS transfer-coding ] )
-
-Content-Length          = 1*DIGIT
-
-; *************************** transfer codings headers
-
-Trailer                 = *( "," OWS ) field-name *( OWS "," [ OWS field-name ] )
-
-; *************************** message forwarding headers
-
-received-protocol       = [ protocol-name "/" ] protocol-version
-received-by             = ( uri-host [ ":" port ] ) / pseudonym
-Via                     = *( "," OWS ) ( received-protocol RWS received-by [ RWS comment ] ) *( OWS "," [ OWS ( received-protocol RWS received-by [ RWS comment ] ) ] )
-
-; *************************** connection mangement headers
-
-connection-option       = token
-Connection              = *( "," OWS ) connection-option *( OWS "," [ OWS connection-option ] )
-
-protocol                = protocol-name [ "/" protocol-version ]
-Upgrade                 = *( "," OWS ) protocol *( OWS "," [ OWS protocol ] )
-
-; *************************** representation headers
-
-media-type              = type "/" subtype *( OWS ";" OWS parameter )
-Content-Type            = media-type
-
-Content-Encoding        = *( "," OWS ) content-coding *( OWS "," [ OWS content-coding ] )
-
-language-tag            = <Language-Tag, see [RFC5646], Section 2.1>
-Content-Language        = *( "," OWS ) language-tag *( OWS "," [ OWS language-tag ] )
-
-Content-Location        = absolute-URI / partial-URI
-
-; *************************** payload headers
-
-complete-length         = 1*DIGIT
-other-range-resp        = *CHAR
-unsatisfied-range       = "*/" complete-length
-byte-range              = first-byte-pos "-" last-byte-pos
-byte-range-resp         = byte-range "/" ( complete-length / "*" )
-byte-content-range      = bytes-unit SP ( byte-range-resp / unsatisfied-range )
-other-content-range     = other-range-unit SP other-range-resp
-Content-Range           = byte-content-range / other-content-range
 
 ; *************************** ignore for now
 
@@ -334,7 +312,7 @@ Content-Range           = byte-content-range / other-content-range
 ;chunked-body           = *chunk last-chunk trailer-part CRLF
 
 ;scheme                 = <scheme, see [RFC3986], Section 3.1>
-;fragment               = <fragment, see [RFC3986], Section 3.5>
-;path-abempty           = <path-abempty, see [RFC3986], Section 3.3>
+;fragment                 = <fragment, see [RFC3986], Section 3.5>
+;path-abempty             = <path-abempty, see [RFC3986], Section 3.3>
 ;http-URI               = "http://" authority path-abempty [ "?" query ] [ "#" fragment ]
 ;https-URI              = "https://" authority path-abempty [ "?" query ] [ "#" fragment ]
