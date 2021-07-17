@@ -178,11 +178,11 @@ Trailer                 = *( "," OWS ) field-name *( OWS "," [ OWS field-name ] 
 
 Transfer-Encoding       = *( "," OWS ) transfer-coding *( OWS "," [ OWS transfer-coding ] )
 
-protocol                = protocol-name [ "/" protocol-version ]
-Upgrade                 = *( "," OWS ) protocol *( OWS "," [ OWS protocol ] )
-
 connection-option       = token
 Connection              = *( "," OWS ) connection-option *( OWS "," [ OWS connection-option ] )
+
+protocol                = protocol-name [ "/" protocol-version ]
+Upgrade                 = *( "," OWS ) protocol *( OWS "," [ OWS protocol ] )
 
 received-protocol       = [ protocol-name "/" ] protocol-version
 received-by             = ( uri-host [ ":" port ] ) / pseudonym
