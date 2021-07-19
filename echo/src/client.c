@@ -1,20 +1,22 @@
 #include "echo.h"
+#include <assert.h>
 #include <dc_application/command_line.h>
-#include <dc_application/environment.h>
 #include <dc_application/config.h>
 #include <dc_application/defaults.h>
+#include <dc_application/environment.h>
 #include <dc_application/options.h>
-#include <dc_posix/sys/socket.h>
-#include <dc_posix/netdb.h>
-#include <dc_posix/stdlib.h>
-#include <dc_posix/string.h>
-#include <dc_posix/unistd.h>
-#include <signal.h>
+#include <dc_posix/dc_netdb.h>
+#include <dc_posix/dc_stdlib.h>
+#include <dc_posix/dc_string.h>
+#include <dc_posix/dc_unistd.h>
+#include <dc_posix/sys/dc_socket.h>
 #include <getopt.h>
 #include <inttypes.h>
-#include <assert.h>
+#include <signal.h>
 
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
 struct application_settings
 {
     struct dc_opt_settings opts;
@@ -23,7 +25,8 @@ struct application_settings
     struct dc_setting_regex *ip_version;
     struct dc_setting_string *message;
     struct dc_setting_uint16 *port;
-};
+} __attribute__((aligned(128)));
+#pragma GCC diagnostic pop
 
 
 static struct dc_application_lifecycle *create_application_lifecycle(const struct dc_posix_env *env, struct dc_error *err);
@@ -35,6 +38,7 @@ static void error_reporter(const struct dc_posix_env *env, const struct dc_error
 static void trace(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
 
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 __attribute__ ((unused)) static volatile sig_atomic_t exit_signal = 0;
 
 
@@ -153,6 +157,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     int                          sock_fd;
     socklen_t                    size;
     size_t                       message_length;
+    uint16_t                     converted_socket;
 
     app_settings = (struct application_settings *)settings;
     verbose      = dc_setting_bool_get(env, app_settings->verbose);
@@ -187,17 +192,20 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     hints.ai_flags    |= AI_CANONNAME;
     dc_getaddrinfo(env, err, hostname, NULL, &hints, &result);
 
-    if(DC_HAS_ERROR(err))
+    if(dc_error_has_error(err))
     {
         return -1;
     }
 
     sock_fd = dc_socket(env, err, result->ai_family, result->ai_socktype, result->ai_protocol);
 
-    if(DC_HAS_ERROR(err))
+    if(dc_error_has_error(err))
     {
         return -1;
     }
+
+    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    converted_socket = htons(port);
 
     if(dc_strcmp(env, ip_version, "IPv4") == 0)
     {
@@ -207,7 +215,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
 #pragma GCC diagnostic ignored "-Wcast-align"
         sockaddr           = (struct sockaddr_in *)result->ai_addr;
 #pragma GCC diagnostic pop
-        sockaddr->sin_port = htons(port);
+        sockaddr->sin_port = converted_socket;
         size               = sizeof(struct sockaddr_in);
     }
     else if(dc_strcmp(env, ip_version, "IPv6") == 0)
@@ -218,7 +226,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
 #pragma GCC diagnostic ignored "-Wcast-align"
         sockaddr            = (struct sockaddr_in6 *)result->ai_addr;
 #pragma GCC diagnostic pop
-        sockaddr->sin6_port = htons(port);
+        sockaddr->sin6_port = converted_socket;
         size                = sizeof(struct sockaddr_in);
     }
     else
@@ -229,7 +237,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
 
     dc_connect(env, err, sock_fd, (struct sockaddr *)result->ai_addr, size);
 
-    if(DC_HAS_ERROR(err))
+    if(dc_error_has_error(err))
     {
         return -1;
     }
@@ -237,13 +245,13 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     message_length = dc_strlen(env, message);
     dc_write(env, err, sock_fd, message, message_length);
 
-    if(DC_HAS_NO_ERROR(err))
+    if(dc_error_has_no_error(err))
     {
         char *echoed_message;
 
         echoed_message = dc_malloc(env, err, message_length + 1);
 
-        if(DC_HAS_NO_ERROR(err))
+        if(dc_error_has_no_error(err))
         {
             dc_read(env, err, sock_fd, echoed_message, message_length);
             dc_close(env, err, sock_fd);

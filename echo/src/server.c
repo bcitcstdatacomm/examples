@@ -1,18 +1,19 @@
 #include "echo.h"
-#include <dc_network/server.h>
-#include <dc_network/common.h>
 #include <dc_application/command_line.h>
-#include <dc_application/environment.h>
 #include <dc_application/config.h>
 #include <dc_application/defaults.h>
+#include <dc_application/environment.h>
 #include <dc_application/options.h>
+#include <dc_network/common.h>
+#include <dc_network/options.h>
+#include <dc_network/server.h>
+#include <dc_posix/dc_netdb.h>
+#include <dc_posix/dc_signal.h>
+#include <dc_posix/dc_string.h>
+#include <dc_posix/sys/dc_socket.h>
 #include <dc_util/dump.h>
 #include <dc_util/streams.h>
 #include <dc_util/types.h>
-#include <dc_posix/netdb.h>
-#include <dc_posix/signal.h>
-#include <dc_posix/string.h>
-#include <dc_posix/sys/socket.h>
 #include <getopt.h>
 #include <inttypes.h>
 
@@ -29,7 +30,7 @@ struct application_settings
     struct dc_setting_bool *reuse_address;
     struct addrinfo *result;
     int server_socket_fd;
-};
+} __attribute__((aligned(128)));
 #pragma GCC diagnostic pop
 
 
@@ -45,7 +46,7 @@ static void do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err
 static void do_bind(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static void do_listen(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static void do_setup(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int *client_socket_fd, void *arg);
 static void do_shutdown(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static void do_destroy_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 static void error_reporter(const struct dc_posix_env *env, const struct dc_error *err);
@@ -54,6 +55,7 @@ static void write_displayer(const struct dc_posix_env *env, struct dc_error *err
 static void read_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count, size_t file_position, void *arg);
 
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile sig_atomic_t exit_signal = 0;
 
 
@@ -199,13 +201,13 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
 
     info = dc_server_info_create(env, err, "Echo Server", NULL, settings);
 
-    if(DC_HAS_NO_ERROR(err))
+    if(dc_error_has_no_error(err))
     {
         dc_server_run(env, err, info, create_server_lifecycle, destroy_server_lifecycle);
         dc_server_info_destroy(env, &info);
     }
 
-    if(DC_HAS_NO_ERROR(err))
+    if(dc_error_has_no_error(err))
     {
         ret_val = 0;
     }
@@ -244,10 +246,10 @@ static void do_create_settings(const struct dc_posix_env *env, struct dc_error *
     }
     else
     {
-        DC_REPORT_USER(env, err, "Invalid ip_version", -1);
+        DC_ERROR_RAISE_USER(err, "Invalid ip_version", -1);
     }
 
-    if(DC_HAS_NO_ERROR(err))
+    if(dc_error_has_no_error(err))
     {
         const char *hostname;
 
@@ -273,7 +275,7 @@ static void do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err
     DC_TRACE(env);
     app_settings  = arg;
     reuse_address = dc_setting_bool_get(env, app_settings->reuse_address);
-    dc_network_reuse_socket(env, err, app_settings->server_socket_fd, reuse_address);
+    dc_network_opt_ip_so_reuse_addr(env, err, app_settings->server_socket_fd, reuse_address);
 }
 
 static void do_bind(const struct dc_posix_env *env, struct dc_error *err, void *arg)
@@ -308,20 +310,19 @@ static void do_setup(const struct dc_posix_env *env, __attribute__ ((unused)) st
     DC_TRACE(env);
 }
 
-static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int *client_socket_fd, void *arg)
 {
     struct application_settings *app_settings;
-    int client_socket_fd;
     bool ret_val;
 
     DC_TRACE(env);
-    app_settings     = arg;
-    ret_val          = false;
-    client_socket_fd = dc_network_accept(env, err, app_settings->server_socket_fd);
+    app_settings      = arg;
+    ret_val           = false;
+    *client_socket_fd = dc_network_accept(env, err, app_settings->server_socket_fd);
 
-    if(DC_HAS_ERROR(err))
+    if(dc_error_has_error(err))
     {
-        if(exit_signal == true && DC_ERROR_IS_ERRNO(err, EINTR))
+        if(exit_signal == true && dc_error_is_errno(err, EINTR))
         {
             ret_val = true;
         }
@@ -337,16 +338,16 @@ void foo(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     dump_info = dc_dump_info_create(env, err, STDOUT_FILENO, dc_max_off_t(env));
 
-    if(DC_HAS_NO_ERROR(err))
+    if(dc_error_has_no_error(err))
     {
 //            copy_info = dc_stream_copy_info_create(env, err, NULL, read_displayer, &client_fd, write_displayer, &client_fd);
         copy_info = dc_stream_copy_info_create(env, err, NULL, dc_dump_dumper, dump_info, NULL, NULL);
 
-        if(DC_HAS_NO_ERROR(err))
+        if(dc_error_has_no_error(err))
         {
             dc_stream_copy(env, err, client_socket_fd, client_socket_fd, 1024, copy_info);
 
-            if(DC_HAS_NO_ERROR(err))
+            if(dc_error_has_no_error(err))
             {
                 dc_stream_copy_info_destroy(env, &copy_info);
             }
