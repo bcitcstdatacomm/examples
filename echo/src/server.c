@@ -18,8 +18,6 @@
 #include <inttypes.h>
 
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpadded"
 struct application_settings
 {
     struct dc_opt_settings opts;
@@ -30,8 +28,7 @@ struct application_settings
     struct dc_setting_bool *reuse_address;
     struct addrinfo *result;
     int server_socket_fd;
-} __attribute__((aligned(128)));
-#pragma GCC diagnostic pop
+};
 
 
 static struct dc_application_lifecycle *create_application_lifecycle(const struct dc_posix_env *env, struct dc_error *err);

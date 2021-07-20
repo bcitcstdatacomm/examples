@@ -15,8 +15,6 @@
 #include <signal.h>
 
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpadded"
 struct application_settings
 {
     struct dc_opt_settings opts;
@@ -25,8 +23,7 @@ struct application_settings
     struct dc_setting_regex *ip_version;
     struct dc_setting_string *message;
     struct dc_setting_uint16 *port;
-} __attribute__((aligned(128)));
-#pragma GCC diagnostic pop
+};
 
 
 static struct dc_application_lifecycle *create_application_lifecycle(const struct dc_posix_env *env, struct dc_error *err);
@@ -189,7 +186,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     dc_memset(env, &hints, 0, sizeof(hints));
     hints.ai_family    = family;
     hints.ai_socktype  = SOCK_STREAM;
-    hints.ai_flags    |= AI_CANONNAME;
+    hints.ai_flags     = AI_CANONNAME;
     dc_getaddrinfo(env, err, hostname, NULL, &hints, &result);
 
     if(dc_error_has_error(err))
@@ -211,10 +208,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     {
         struct sockaddr_in *sockaddr;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
         sockaddr           = (struct sockaddr_in *)result->ai_addr;
-#pragma GCC diagnostic pop
         sockaddr->sin_port = converted_socket;
         size               = sizeof(struct sockaddr_in);
     }
@@ -222,10 +216,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     {
         struct sockaddr_in6 *sockaddr;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
         sockaddr            = (struct sockaddr_in6 *)result->ai_addr;
-#pragma GCC diagnostic pop
         sockaddr->sin6_port = converted_socket;
         size                = sizeof(struct sockaddr_in);
     }
@@ -235,7 +226,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
         size = 0;
     }
 
-    dc_connect(env, err, sock_fd, (struct sockaddr *)result->ai_addr, size);
+    dc_connect(env, err, sock_fd, result->ai_addr, size);
 
     if(dc_error_has_error(err))
     {
