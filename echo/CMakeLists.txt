@@ -12,12 +12,12 @@ project(
 ### Require out-of-source builds
 # this still creates a CMakeFiles directory and CMakeCache.txt- can we delete them?
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
-if(EXISTS "${LOC_PATH}")
+if (EXISTS "${LOC_PATH}")
     message(FATAL_ERROR "You cannot build in a source directory (or any directory with a CMakeLists.txt file). Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
-endif()
+endif ()
 
 # Only do these if this is the main project, and not if it is included through add_subdirectory
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 
     # Optionally set things like CMAKE_CXX_STANDARD, CMAKE_POSITION_INDEPENDENT_CODE here
     set(CMAKE_C_STANDARD 11)
@@ -34,12 +34,12 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 
     # Docs only available if this is the main app
     find_package(Doxygen)
-    if(Doxygen_FOUND)
+    if (Doxygen_FOUND)
         add_subdirectory(docs)
-    else()
+    else ()
         message(STATUS "Doxygen not found, not building docs")
-    endif()
-endif()
+    endif ()
+endif ()
 
 # The compiled library code is here
 add_subdirectory(src)
@@ -49,8 +49,8 @@ add_subdirectory(src)
 
 # Testing only available if this is the main app
 # Emergency override MODERN_CMAKE_BUILD_TESTING provided as well
-if((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR MODERN_CMAKE_BUILD_TESTING)
+if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR MODERN_CMAKE_BUILD_TESTING)
         AND BUILD_TESTING)
-#    add_subdirectory(tests)
-endif()
+    #    add_subdirectory(tests)
+endif ()
 
