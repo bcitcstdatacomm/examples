@@ -10,6 +10,7 @@
 #include <dc_posix/dc_netdb.h>
 #include <dc_posix/dc_signal.h>
 #include <dc_posix/dc_string.h>
+#include <dc_posix/dc_unistd.h>
 #include <dc_posix/sys/dc_socket.h>
 #include <dc_util/dump.h>
 #include <dc_util/streams.h>
@@ -414,13 +415,13 @@ write_displayer(__attribute__ ((unused)) const struct dc_posix_env *env, __attri
 
 
 __attribute__ ((unused)) static void
-read_displayer(__attribute__ ((unused)) const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err,
+read_displayer(const struct dc_posix_env *env, struct dc_error *err,
                const uint8_t *data, size_t count, __attribute__ ((unused)) size_t file_position,
                __attribute__ ((unused)) void *arg)
 {
-    write(STDOUT_FILENO, "RECV: ", 6);
-    write(STDOUT_FILENO, data, count);
-    write(STDOUT_FILENO, "\n", 1);
+    dc_write(env, err, STDOUT_FILENO, "RECV: ", 6);
+    dc_write(env, err, STDOUT_FILENO, data, count);
+    dc_write(env, err, STDOUT_FILENO, "\n", 1);
 }
 
 
