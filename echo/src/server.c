@@ -63,7 +63,7 @@ static void do_shutdown(const struct dc_posix_env *env, struct dc_error *err, vo
 
 static void do_destroy_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 
-static void error_reporter(const struct dc_posix_env *env, const struct dc_error *err);
+static void error_reporter(const struct dc_error *err);
 
 static void trace(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
 
@@ -86,8 +86,8 @@ int main(int argc, char *argv[])
     int ret_val;
     struct sigaction sa;
 
-    dc_posix_env_init(&env, error_reporter);
-    dc_error_init(&err);
+    dc_error_init(&err, error_reporter);
+    dc_posix_env_init(&env, NULL);
     dc_memset(&env, &sa, 0, sizeof(sa));
     sa.sa_handler = &signal_handler;
     dc_sigaction(&env, &err, SIGINT, &sa, NULL);
@@ -271,6 +271,7 @@ static void do_create_settings(const struct dc_posix_env *env, struct dc_error *
         else
         {
             DC_ERROR_RAISE_USER(err, "Invalid ip_version", -1);
+            family = 0;
         }
     }
 
@@ -357,6 +358,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int 
     return ret_val;
 }
 
+/*
 void foo(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct dc_dump_info *dump_info;
@@ -382,13 +384,11 @@ void foo(const struct dc_posix_env *env, struct dc_error *err, void *arg)
         dc_dump_info_destroy(env, &dump_info);
     }
 }
+*/
 
-static void do_shutdown(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, void *arg)
+static void do_shutdown(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, __attribute__ ((unused)) void *arg)
 {
-    struct application_settings *app_settings;
-
     DC_TRACE(env);
-    app_settings = arg;
 }
 
 static void
@@ -423,7 +423,7 @@ read_displayer(__attribute__ ((unused)) const struct dc_posix_env *env, __attrib
 }
 
 
-static void error_reporter(__attribute__ ((unused)) const struct dc_posix_env *env, const struct dc_error *err)
+static void error_reporter(const struct dc_error *err)
 {
     if(err->type == DC_ERROR_ERRNO)
     {

@@ -38,7 +38,7 @@ destroy_settings(const struct dc_posix_env *env, struct dc_error *err, struct dc
 
 static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings *settings);
 
-static void error_reporter(const struct dc_posix_env *env, const struct dc_error *err);
+static void error_reporter(const struct dc_error *err);
 
 static void trace(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
 
@@ -49,13 +49,13 @@ __attribute__ ((unused)) static volatile sig_atomic_t exit_signal = 0;
 
 int main(int argc, char *argv[])
 {
-    struct dc_posix_env env;
     struct dc_error err;
+    struct dc_posix_env env;
     struct dc_application_info *info;
     int ret_val;
 
-    dc_posix_env_init(&env, error_reporter);
-    dc_error_init(&err);
+    dc_error_init(&err, error_reporter);
+    dc_posix_env_init(&env,  NULL);
 //    env.tracer = trace;
     info = dc_application_info_create(&env, &err, "Test Application", NULL);
     ret_val = dc_application_run(&env, &err, info, create_application_lifecycle, destroy_application_lifecycle,
@@ -272,7 +272,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     return ret_val;
 }
 
-static void error_reporter(__attribute__ ((unused)) const struct dc_posix_env *env, const struct dc_error *err)
+static void error_reporter(const struct dc_error *err)
 {
     if(err->type == DC_ERROR_ERRNO)
     {

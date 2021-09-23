@@ -59,6 +59,12 @@ if (LIBM)
     target_link_libraries(dc_echo_client ${LIBM})
 endif ()
 
+find_library(LIBDC_ERROR dc_error REQUIRED)
+if (LIBDC_POSIX)
+    target_link_libraries(dc_echo_server ${LIBDC_ERROR})
+    target_link_libraries(dc_echo_client ${LIBDC_ERROR})
+endif ()
+
 find_library(LIBDC_POSIX dc_posix REQUIRED)
 if (LIBDC_POSIX)
     target_link_libraries(dc_echo_server ${LIBDC_POSIX})
