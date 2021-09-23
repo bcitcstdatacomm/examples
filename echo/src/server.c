@@ -16,6 +16,7 @@
 #include <dc_util/types.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <stdio.h>
 
 
 struct application_settings
