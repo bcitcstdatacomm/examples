@@ -151,6 +151,8 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
     settings->port = dc_setting_uint16_create(env, err);
     settings->reuse_address = dc_setting_bool_create(env, err);
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
     struct options opts[] =
             {
                     {(struct dc_setting *)settings->opts.parent.config_path, dc_options_set_path,   "config",  required_argument, 'c', "CONFIG",        dc_string_from_string, NULL,            dc_string_from_config, NULL},
@@ -160,6 +162,7 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
                     {(struct dc_setting *)settings->port,                    dc_options_set_uint16, "port",    required_argument, 'p', "PORT",          dc_uint16_from_string, "port",          dc_uint16_from_config, &default_port},
                     {(struct dc_setting *)settings->reuse_address,           dc_options_set_bool,   "force",   no_argument,       'f', "REUSE_ADDRESS", dc_flag_from_string,   "reuse_address", dc_flag_from_config,   &default_reuse},
             };
+#pragma GCC diagnostic pop
 
     // note the trick here - we use calloc and add 1 to ensure the last line is all 0/NULL
     settings->opts.opts = dc_calloc(env, err, (sizeof(opts) / sizeof(struct options)) + 1, sizeof(struct options));
