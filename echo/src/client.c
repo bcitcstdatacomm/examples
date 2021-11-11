@@ -26,11 +26,6 @@ struct application_settings
 };
 
 
-static struct dc_application_lifecycle *
-create_application_lifecycle(const struct dc_posix_env *env, struct dc_error *err);
-
-static void destroy_application_lifecycle(const struct dc_posix_env *env, struct dc_application_lifecycle **plifecycle);
-
 static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err);
 
 static int
@@ -40,7 +35,10 @@ static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_a
 
 static void error_reporter(const struct dc_error *err);
 
-static void trace(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
+static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
+                           const char *file_name,
+                           const char *function_name,
+                           size_t line_number);
 
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -49,42 +47,26 @@ __attribute__ ((unused)) static volatile sig_atomic_t exit_signal = 0;
 
 int main(int argc, char *argv[])
 {
+    dc_error_reporter reporter;
+    dc_posix_tracer tracer;
     struct dc_error err;
     struct dc_posix_env env;
     struct dc_application_info *info;
     int ret_val;
 
-    dc_error_init(&err, error_reporter);
-    dc_posix_env_init(&env,  NULL);
-//    env.tracer = trace;
-    info = dc_application_info_create(&env, &err, "Test Application", NULL);
-    ret_val = dc_application_run(&env, &err, info, create_application_lifecycle, destroy_application_lifecycle,
+    reporter = error_reporter;
+    tracer = trace_reporter;
+    tracer = NULL;
+    dc_error_init(&err, reporter);
+    dc_posix_env_init(&env,  tracer);
+    info = dc_application_info_create(&env, &err, "Test Application");
+    ret_val = dc_application_run(&env, &err, info, create_settings, destroy_settings, run, dc_default_create_lifecycle, dc_default_destroy_lifecycle,
                                  "~/.dcecho.conf",
                                  argc, argv);
     dc_application_info_destroy(&env, &info);
     dc_error_reset(&err);
 
     return ret_val;
-}
-
-static struct dc_application_lifecycle *
-create_application_lifecycle(const struct dc_posix_env *env, struct dc_error *err)
-{
-    struct dc_application_lifecycle *lifecycle;
-
-    lifecycle = dc_application_lifecycle_create(env, err, create_settings, destroy_settings, run);
-    dc_application_lifecycle_set_parse_command_line(env, lifecycle, dc_default_parse_command_line);
-    dc_application_lifecycle_set_read_env_vars(env, lifecycle, dc_default_read_env_vars);
-    dc_application_lifecycle_set_read_config(env, lifecycle, dc_default_load_config);
-    dc_application_lifecycle_set_set_defaults(env, lifecycle, dc_default_set_defaults);
-
-    return lifecycle;
-}
-
-static void destroy_application_lifecycle(const struct dc_posix_env *env, struct dc_application_lifecycle **plifecycle)
-{
-    DC_TRACE(env);
-    dc_application_lifecycle_destroy(env, plifecycle);
 }
 
 static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err)
@@ -156,11 +138,11 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
                struct dc_application_settings *settings)
 {
     struct application_settings *app_settings;
+    const char *message;
     bool verbose;
     const char *hostname;
     const char *ip_version;
     in_port_t port;
-    const char *message;
     int ret_val;
     struct addrinfo hints;
     struct addrinfo *result;
@@ -171,11 +153,17 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     uint16_t converted_socket;
 
     app_settings = (struct application_settings *)settings;
+    message = dc_setting_string_get(env, app_settings->message);
+
+    if(message == NULL)
+    {
+        return -1;
+    }
+
     verbose = dc_setting_bool_get(env, app_settings->verbose);
     hostname = dc_setting_string_get(env, app_settings->hostname);
     ip_version = dc_setting_regex_get(env, app_settings->ip_version);
     port = dc_setting_uint16_get(env, app_settings->port);
-    message = dc_setting_string_get(env, app_settings->message);
     ret_val = 0;
 
     if(verbose)
@@ -264,9 +252,24 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
 
         if(dc_error_has_no_error(err))
         {
-            dc_read(env, err, sock_fd, echoed_message, message_length);
-            dc_close(env, err, sock_fd);
-            dc_free(env, echoed_message, message_length + 1);
+            ssize_t len;
+            size_t total_len;
+
+            total_len = 0;
+
+            while(total_len < message_length && (len = dc_read(env, err, sock_fd, echoed_message, message_length)) > 0)
+            {
+                write(STDOUT_FILENO, echoed_message, (size_t)len);
+                total_len += (size_t)len;
+            }
+
+            write(STDOUT_FILENO, "\n", 1);
+
+            if(dc_error_has_no_error(err))
+            {
+                dc_close(env, err, sock_fd);
+                dc_free(env, echoed_message, message_length + 1);
+            }
         }
     }
 
@@ -291,9 +294,10 @@ static void error_reporter(const struct dc_error *err)
     fprintf(stderr, "ERROR: %s\n", err->message);
 }
 
-__attribute__ ((unused)) static void
-trace(__attribute__ ((unused)) const struct dc_posix_env *env, const char *file_name, const char *function_name,
-      size_t line_number)
+static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
+                           const char *file_name,
+                           const char *function_name,
+                           size_t line_number)
 {
     fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
 }

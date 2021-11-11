@@ -28,15 +28,9 @@ struct application_settings
     struct dc_setting_regex *ip_version;
     struct dc_setting_uint16 *port;
     struct dc_setting_bool *reuse_address;
-    struct addrinfo *result;
+    struct addrinfo *address;
     int server_socket_fd;
 };
-
-
-static struct dc_application_lifecycle *
-create_application_lifecycle(const struct dc_posix_env *env, struct dc_error *err);
-
-static void destroy_application_lifecycle(const struct dc_posix_env *env, struct dc_application_lifecycle **plifecycle);
 
 static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err);
 
@@ -67,6 +61,8 @@ static void do_destroy_settings(const struct dc_posix_env *env, struct dc_error 
 
 static void error_reporter(const struct dc_error *err);
 
+void echo(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd);
+
 static void trace(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
 
 static void write_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count,
@@ -78,53 +74,40 @@ static void read_displayer(const struct dc_posix_env *env, struct dc_error *err,
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile sig_atomic_t exit_signal = 0;
+static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
+                           const char *file_name,
+                           const char *function_name,
+                           size_t line_number);
 
 
 int main(int argc, char *argv[])
 {
+    dc_error_reporter reporter;
+    dc_posix_tracer tracer;
     struct dc_posix_env env;
     struct dc_error err;
     struct dc_application_info *info;
     int ret_val;
     struct sigaction sa;
 
-    dc_error_init(&err, error_reporter);
-    dc_posix_env_init(&env, NULL);
+    reporter = error_reporter;
+    tracer = trace_reporter;
+    tracer = NULL;
+    dc_error_init(&err, reporter);
+    dc_posix_env_init(&env, tracer);
     dc_memset(&env, &sa, 0, sizeof(sa));
     sa.sa_handler = &signal_handler;
     dc_sigaction(&env, &err, SIGINT, &sa, NULL);
     dc_sigaction(&env, &err, SIGTERM, &sa, NULL);
 
-//    env.tracer = trace;
-    info = dc_application_info_create(&env, &err, "Test Application", NULL);
-    ret_val = dc_application_run(&env, &err, info, create_application_lifecycle, destroy_application_lifecycle,
+    info = dc_application_info_create(&env, &err, "Test Application");
+    ret_val = dc_application_run(&env, &err, info, create_settings, destroy_settings, run, dc_default_create_lifecycle, dc_default_destroy_lifecycle,
                                  "~/.dcecho.conf",
                                  argc, argv);
     dc_application_info_destroy(&env, &info);
     dc_error_reset(&err);
 
     return ret_val;
-}
-
-
-static struct dc_application_lifecycle *
-create_application_lifecycle(const struct dc_posix_env *env, struct dc_error *err)
-{
-    struct dc_application_lifecycle *lifecycle;
-
-    lifecycle = dc_application_lifecycle_create(env, err, create_settings, destroy_settings, run);
-    dc_application_lifecycle_set_parse_command_line(env, lifecycle, dc_default_parse_command_line);
-    dc_application_lifecycle_set_read_env_vars(env, lifecycle, dc_default_read_env_vars);
-    dc_application_lifecycle_set_read_config(env, lifecycle, dc_default_load_config);
-    dc_application_lifecycle_set_set_defaults(env, lifecycle, dc_default_set_defaults);
-
-    return lifecycle;
-}
-
-static void destroy_application_lifecycle(const struct dc_posix_env *env, struct dc_application_lifecycle **plifecycle)
-{
-    DC_TRACE(env);
-    dc_application_lifecycle_destroy(env, plifecycle);
 }
 
 
@@ -212,7 +195,6 @@ static struct dc_server_lifecycle *create_server_lifecycle(const struct dc_posix
     return lifecycle;
 }
 
-
 static void destroy_server_lifecycle(const struct dc_posix_env *env, struct dc_server_lifecycle **plifecycle)
 {
     DC_TRACE(env);
@@ -285,17 +267,28 @@ static void do_create_settings(const struct dc_posix_env *env, struct dc_error *
         const char *hostname;
 
         hostname = dc_setting_string_get(env, app_settings->hostname);
-        dc_network_get_addresses(env, err, family, SOCK_STREAM, hostname, &app_settings->result);
+        dc_network_get_addresses(env, err, family, SOCK_STREAM, hostname, &app_settings->address);
     }
 }
 
 static void do_create_socket(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
+    int socket_fd;
 
     DC_TRACE(env);
     app_settings = arg;
-    app_settings->server_socket_fd = dc_network_create_socket(env, err, app_settings->result);
+    socket_fd = dc_network_create_socket(env, err, app_settings->address);
+
+    if(dc_error_has_no_error(err))
+    {
+        app_settings = arg;
+        app_settings->server_socket_fd = socket_fd;
+    }
+    else
+    {
+        socket_fd = -1;
+    }
 }
 
 static void do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err, void *arg)
@@ -321,7 +314,7 @@ static void do_bind(const struct dc_posix_env *env, struct dc_error *err, void *
     dc_network_bind(env,
                     err,
                     app_settings->server_socket_fd,
-                    app_settings->result->ai_addr,
+                    app_settings->address->ai_addr,
                     port);
 }
 
@@ -359,12 +352,15 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int 
             ret_val = true;
         }
     }
+    else
+    {
+        echo(env, err, *client_socket_fd);
+    }
 
     return ret_val;
 }
 
-/*
-void foo(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+void echo(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd)
 {
     struct dc_dump_info *dump_info;
     struct dc_stream_copy_info *copy_info;
@@ -373,7 +369,6 @@ void foo(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     if(dc_error_has_no_error(err))
     {
-//            copy_info = dc_stream_copy_info_create(env, err, NULL, read_displayer, &client_fd, write_displayer, &client_fd);
         copy_info = dc_stream_copy_info_create(env, err, NULL, dc_dump_dumper, dump_info, NULL, NULL);
 
         if(dc_error_has_no_error(err))
@@ -389,7 +384,6 @@ void foo(const struct dc_posix_env *env, struct dc_error *err, void *arg)
         dc_dump_info_destroy(env, &dump_info);
     }
 }
-*/
 
 static void do_shutdown(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, __attribute__ ((unused)) void *arg)
 {
@@ -403,30 +397,8 @@ do_destroy_settings(const struct dc_posix_env *env, __attribute__ ((unused)) str
 
     DC_TRACE(env);
     app_settings = arg;
-    dc_freeaddrinfo(env, app_settings->result);
+    dc_freeaddrinfo(env, app_settings->address);
 }
-
-__attribute__ ((unused)) static void
-write_displayer(__attribute__ ((unused)) const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err,
-                const uint8_t *data, size_t count, __attribute__ ((unused)) size_t file_position,
-                __attribute__ ((unused)) void *arg)
-{
-    write(STDOUT_FILENO, "SENT: ", 6);
-    write(STDOUT_FILENO, data, count);
-    write(STDOUT_FILENO, "\n", 1);
-}
-
-
-__attribute__ ((unused)) static void
-read_displayer(const struct dc_posix_env *env, struct dc_error *err,
-               const uint8_t *data, size_t count, __attribute__ ((unused)) size_t file_position,
-               __attribute__ ((unused)) void *arg)
-{
-    dc_write(env, err, STDOUT_FILENO, "RECV: ", 6);
-    dc_write(env, err, STDOUT_FILENO, data, count);
-    dc_write(env, err, STDOUT_FILENO, "\n", 1);
-}
-
 
 static void error_reporter(const struct dc_error *err)
 {
@@ -444,6 +416,14 @@ static void error_reporter(const struct dc_error *err)
     fprintf(stderr, "ERROR: %s\n", err->message);
 }
 
+
+static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
+                           const char *file_name,
+                           const char *function_name,
+                           size_t line_number)
+{
+    fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
+}
 
 __attribute__ ((unused)) static void
 trace(__attribute__ ((unused)) const struct dc_posix_env *env, const char *file_name, const char *function_name,
