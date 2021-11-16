@@ -2,8 +2,6 @@
 #include <assert.h>
 #include <dc_application/command_line.h>
 #include <dc_application/config.h>
-#include <dc_application/defaults.h>
-#include <dc_application/environment.h>
 #include <dc_application/options.h>
 #include <dc_posix/dc_netdb.h>
 #include <dc_posix/dc_stdlib.h>

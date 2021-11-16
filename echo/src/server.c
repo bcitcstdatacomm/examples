@@ -1,8 +1,6 @@
 #include "echo.h"
 #include <dc_application/command_line.h>
 #include <dc_application/config.h>
-#include <dc_application/defaults.h>
-#include <dc_application/environment.h>
 #include <dc_application/options.h>
 #include <dc_network/common.h>
 #include <dc_network/options.h>
@@ -10,13 +8,11 @@
 #include <dc_posix/dc_netdb.h>
 #include <dc_posix/dc_signal.h>
 #include <dc_posix/dc_string.h>
-#include <dc_posix/dc_unistd.h>
 #include <dc_posix/sys/dc_socket.h>
 #include <dc_util/dump.h>
 #include <dc_util/streams.h>
 #include <dc_util/types.h>
 #include <getopt.h>
-#include <inttypes.h>
 #include <unistd.h>
 
 
