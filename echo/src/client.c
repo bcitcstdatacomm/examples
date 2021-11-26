@@ -11,6 +11,7 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <unistd.h>
 
 
 struct application_settings
@@ -257,11 +258,11 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
 
             while(total_len < message_length && (len = dc_read(env, err, sock_fd, echoed_message, message_length)) > 0)
             {
-                write(STDOUT_FILENO, echoed_message, (size_t)len);
+                dc_write(env, err, STDOUT_FILENO, echoed_message, (size_t)len);
                 total_len += (size_t)len;
             }
 
-            write(STDOUT_FILENO, "\n", 1);
+            dc_write(env, err, STDOUT_FILENO, "\n", 1);
 
             if(dc_error_has_no_error(err))
             {
