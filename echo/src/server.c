@@ -61,12 +61,13 @@ void echo(const struct dc_posix_env *env, struct dc_error *err, int client_socke
 
 static void trace(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
 
+/*
 static void write_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count,
                             size_t file_position, void *arg);
 
 static void read_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count,
                            size_t file_position, void *arg);
-
+*/
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile sig_atomic_t exit_signal = 0;
