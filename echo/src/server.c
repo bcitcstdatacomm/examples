@@ -340,7 +340,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int 
     {
         if(exit_signal == true && dc_error_is_errno(err, EINTR))
         {
-            ret_val = true;
+            ret_val = false;
             dc_error_reset(err);
         }
     }
