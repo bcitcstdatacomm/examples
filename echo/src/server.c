@@ -55,11 +55,7 @@ static void do_shutdown(const struct dc_posix_env *env, struct dc_error *err, vo
 
 static void do_destroy_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 
-static void error_reporter(const struct dc_error *err);
-
 void echo(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd);
-
-static void trace(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
 
 /*
 static void write_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count,
@@ -71,27 +67,23 @@ static void read_displayer(const struct dc_posix_env *env, struct dc_error *err,
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile sig_atomic_t exit_signal = 0;
-static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
-                           const char *file_name,
-                           const char *function_name,
-                           size_t line_number);
 
 
 int main(int argc, char *argv[])
 {
-    dc_error_reporter reporter;
     dc_posix_tracer tracer;
+    dc_error_reporter reporter;
     struct dc_posix_env env;
     struct dc_error err;
     struct dc_application_info *info;
     int ret_val;
     struct sigaction sa;
 
-    reporter = error_reporter;
-    tracer = trace_reporter;
-    tracer = NULL;
-    dc_error_init(&err, reporter);
+    tracer = dc_posix_default_tracer;
+//    tracer = NULL;
     dc_posix_env_init(&env, tracer);
+    reporter = dc_error_default_error_reporter;
+    dc_error_init(&err, reporter);
     dc_memset(&env, &sa, 0, sizeof(sa));
     sa.sa_handler = &signal_handler;
     dc_sigaction(&env, &err, SIGINT, &sa, NULL);
@@ -161,7 +153,9 @@ static int destroy_settings(const struct dc_posix_env *env, __attribute__ ((unus
     app_settings = (struct application_settings *)*psettings;
     dc_setting_bool_destroy(env, &app_settings->verbose);
     dc_setting_string_destroy(env, &app_settings->hostname);
+    dc_setting_regex_destroy(env, &app_settings->ip_version);
     dc_setting_uint16_destroy(env, &app_settings->port);
+    dc_setting_bool_destroy(env, &app_settings->reuse_address);
     dc_free(env, app_settings->opts.opts, app_settings->opts.opts_size);
     dc_free(env, app_settings, sizeof(struct application_settings));
 
@@ -395,36 +389,4 @@ do_destroy_settings(const struct dc_posix_env *env, __attribute__ ((unused)) str
     DC_TRACE(env);
     app_settings = arg;
     dc_freeaddrinfo(env, app_settings->address);
-}
-
-static void error_reporter(const struct dc_error *err)
-{
-    if(err->type == DC_ERROR_ERRNO)
-    {
-        fprintf(stderr, "ERROR: %s : %s : @ %zu : %d\n", err->file_name, err->function_name, err->line_number,
-                err->errno_code);
-    }
-    else
-    {
-        fprintf(stderr, "ERROR: %s : %s : @ %zu : %d\n", err->file_name, err->function_name, err->line_number,
-                err->err_code);
-    }
-
-    fprintf(stderr, "ERROR: %s\n", err->message);
-}
-
-
-static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
-                           const char *file_name,
-                           const char *function_name,
-                           size_t line_number)
-{
-    fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
-}
-
-__attribute__ ((unused)) static void
-trace(__attribute__ ((unused)) const struct dc_posix_env *env, const char *file_name, const char *function_name,
-      size_t line_number)
-{
-    fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
 }

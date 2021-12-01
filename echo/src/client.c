@@ -32,32 +32,20 @@ destroy_settings(const struct dc_posix_env *env, struct dc_error *err, struct dc
 
 static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings *settings);
 
-static void error_reporter(const struct dc_error *err);
-
-static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
-                           const char *file_name,
-                           const char *function_name,
-                           size_t line_number);
-
-
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-__attribute__ ((unused)) static volatile sig_atomic_t exit_signal = 0;
-
-
 int main(int argc, char *argv[])
 {
-    dc_error_reporter reporter;
     dc_posix_tracer tracer;
-    struct dc_error err;
+    dc_error_reporter reporter;
     struct dc_posix_env env;
+    struct dc_error err;
     struct dc_application_info *info;
     int ret_val;
 
-    reporter = error_reporter;
-    tracer = trace_reporter;
-    tracer = NULL;
-    dc_error_init(&err, reporter);
+    tracer = dc_posix_default_tracer;
+//    tracer = NULL;
     dc_posix_env_init(&env,  tracer);
+    reporter = dc_error_default_error_reporter;
+    dc_error_init(&err, reporter);
     info = dc_application_info_create(&env, &err, "Test Application");
     ret_val = dc_application_run(&env, &err, info, create_settings, destroy_settings, run, dc_default_create_lifecycle, dc_default_destroy_lifecycle,
                                  "~/.dcecho.conf",
@@ -121,7 +109,9 @@ static int destroy_settings(const struct dc_posix_env *env, __attribute__ ((unus
     app_settings = (struct application_settings *)*psettings;
     dc_setting_bool_destroy(env, &app_settings->verbose);
     dc_setting_string_destroy(env, &app_settings->hostname);
+    dc_setting_regex_destroy(env, &app_settings->ip_version);
     dc_setting_uint16_destroy(env, &app_settings->port);
+    dc_setting_string_destroy(env, &app_settings->message);
     dc_free(env, app_settings->opts.opts, app_settings->opts.opts_size);
     dc_free(env, app_settings, sizeof(struct application_settings));
 
@@ -149,7 +139,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     int sock_fd;
     socklen_t size;
     size_t message_length;
-    uint16_t converted_socket;
+    uint16_t converted_port;
 
     app_settings = (struct application_settings *)settings;
     message = dc_setting_string_get(env, app_settings->message);
@@ -206,14 +196,14 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     }
 
     // NOLINTNEXTLINE(hicpp-signed-bitwise)
-    converted_socket = htons(port);
+    converted_port = htons(port);
 
     if(dc_strcmp(env, ip_version, "IPv4") == 0)
     {
         struct sockaddr_in *sockaddr;
 
         sockaddr = (struct sockaddr_in *)result->ai_addr;
-        sockaddr->sin_port = converted_socket;
+        sockaddr->sin_port = converted_port;
         size = sizeof(struct sockaddr_in);
     }
     else
@@ -223,7 +213,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
             struct sockaddr_in6 *sockaddr;
 
             sockaddr = (struct sockaddr_in6 *)result->ai_addr;
-            sockaddr->sin6_port = converted_socket;
+            sockaddr->sin6_port = converted_port;
             size = sizeof(struct sockaddr_in);
         }
         else
@@ -275,28 +265,4 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     dc_freeaddrinfo(env, result);
 
     return ret_val;
-}
-
-static void error_reporter(const struct dc_error *err)
-{
-    if(err->type == DC_ERROR_ERRNO)
-    {
-        fprintf(stderr, "ERROR: %s : %s : @ %zu : %d\n", err->file_name, err->function_name, err->line_number,
-                err->errno_code);
-    }
-    else
-    {
-        fprintf(stderr, "ERROR: %s : %s : @ %zu : %d\n", err->file_name, err->function_name, err->line_number,
-                err->err_code);
-    }
-
-    fprintf(stderr, "ERROR: %s\n", err->message);
-}
-
-static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
-                           const char *file_name,
-                           const char *function_name,
-                           size_t line_number)
-{
-    fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
 }
