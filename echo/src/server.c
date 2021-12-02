@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
     struct sigaction sa;
 
     tracer = dc_posix_default_tracer;
-//    tracer = NULL;
+    tracer = NULL;
     dc_posix_env_init(&env, tracer);
     reporter = dc_error_default_error_reporter;
     dc_error_init(&err, reporter);
@@ -340,7 +340,7 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int 
     {
         if(exit_signal == true && dc_error_is_errno(err, EINTR))
         {
-            ret_val = false;
+            ret_val = true;
             dc_error_reset(err);
         }
     }
