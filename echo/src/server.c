@@ -68,7 +68,6 @@ static void read_displayer(const struct dc_posix_env *env, struct dc_error *err,
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile sig_atomic_t exit_signal = 0;
 
-
 int main(int argc, char *argv[])
 {
     dc_posix_tracer tracer;
@@ -86,10 +85,11 @@ int main(int argc, char *argv[])
     dc_error_init(&err, reporter);
     dc_memset(&env, &sa, 0, sizeof(sa));
     sa.sa_handler = &signal_handler;
+    sa.sa_flags = 0;
     dc_sigaction(&env, &err, SIGINT, &sa, NULL);
     dc_sigaction(&env, &err, SIGTERM, &sa, NULL);
 
-    info = dc_application_info_create(&env, &err, "Test Application");
+    info = dc_application_info_create(&env, &err, "Echo Server");
     ret_val = dc_application_run(&env, &err, info, create_settings, destroy_settings, run, dc_default_create_lifecycle, dc_default_destroy_lifecycle,
                                  "~/.dcecho.conf",
                                  argc, argv);
@@ -109,6 +109,7 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
     static const bool default_reuse = false;
     struct application_settings *settings;
 
+    DC_TRACE(env);
     settings = dc_malloc(env, err, sizeof(struct application_settings));
 
     if(settings == NULL)
@@ -150,6 +151,7 @@ static int destroy_settings(const struct dc_posix_env *env, __attribute__ ((unus
 {
     struct application_settings *app_settings;
 
+    DC_TRACE(env);
     app_settings = (struct application_settings *)*psettings;
     dc_setting_bool_destroy(env, &app_settings->verbose);
     dc_setting_string_destroy(env, &app_settings->hostname);
@@ -172,6 +174,7 @@ static struct dc_server_lifecycle *create_server_lifecycle(const struct dc_posix
 {
     struct dc_server_lifecycle *lifecycle;
 
+    DC_TRACE(env);
     lifecycle = dc_server_lifecycle_create(env, err);
     dc_server_lifecycle_set_create_settings(env, lifecycle, do_create_settings);
     dc_server_lifecycle_set_create_socket(env, lifecycle, do_create_socket);
@@ -199,6 +202,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     int ret_val;
     struct dc_server_info *info;
 
+    DC_TRACE(env);
     info = dc_server_info_create(env, err, "Echo Server", NULL, settings);
 
     if(dc_error_has_no_error(err))
@@ -222,7 +226,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
 
 void signal_handler(__attribute__ ((unused)) int signnum)
 {
-    printf("caught\n");
+    printf("caught %d\n", signnum);
     exit_signal = 1;
 }
 
@@ -334,11 +338,14 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int 
     DC_TRACE(env);
     app_settings = arg;
     ret_val = false;
+
+    printf("accepting\n");
     *client_socket_fd = dc_network_accept(env, err, app_settings->server_socket_fd);
+    printf("accepted\n");
 
     if(dc_error_has_error(err))
     {
-        if(exit_signal == true && dc_error_is_errno(err, EINTR))
+        if(exit_signal == 1 && dc_error_is_errno(err, EINTR))
         {
             ret_val = true;
             dc_error_reset(err);
@@ -357,6 +364,7 @@ void echo(const struct dc_posix_env *env, struct dc_error *err, int client_socke
     struct dc_dump_info *dump_info;
     struct dc_stream_copy_info *copy_info;
 
+    DC_TRACE(env);
     dump_info = dc_dump_info_create(env, err, STDOUT_FILENO, dc_max_off_t(env));
 
     if(dc_error_has_no_error(err))
